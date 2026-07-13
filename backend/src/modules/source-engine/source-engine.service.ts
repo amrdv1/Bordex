@@ -2,10 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { SourceProvider, QueueMetrics } from './providers/provider.interface';
-import { ECherhaProvider } from './providers/echerha.provider';
-import { GoogleTrafficProvider } from './providers/google-traffic.provider';
-import { GranicaPlProvider } from './providers/granica-pl.provider';
-import { WebcamsProvider } from './providers/webcams.provider';
+import { NakordoniProvider } from './providers/nakordoni.provider';
 
 @Injectable()
 export class SourceEngineService {
@@ -14,14 +11,11 @@ export class SourceEngineService {
 
   constructor(private prisma: PrismaService) {
     this.providers = [
-      new ECherhaProvider(),
-      new GoogleTrafficProvider(),
-      new GranicaPlProvider(),
-      new WebcamsProvider()
+      new NakordoniProvider()
     ];
   }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron('0 */2 * * *')
   async handleCron() {
     this.logger.log('Running Aggregation Engine (Multi-Source Fetch)...');
     await this.aggregateData();
@@ -45,8 +39,8 @@ export class SourceEngineService {
         const mergedData = this.mergeMetrics(validResults);
         await this.saveMergedData(point.id, mergedData);
       } else {
-        // Fallback to mock if providers return nothing
-        await this.mockDataForPoint(point.id);
+        // Fallback to 0 if provider fails
+        await this.saveMergedData(point.id, { cars: 0, waitTimeMins: 0 });
       }
     }
   }
@@ -104,10 +98,4 @@ export class SourceEngineService {
     this.logger.log(`Saved aggregated data for point ${pointId}`);
   }
 
-  private async mockDataForPoint(pointId: string) {
-      const cars = Math.floor(Math.random() * 200);
-      const waitTime = cars * 1.5;
-
-      await this.saveMergedData(pointId, { cars, waitTimeMins: waitTime });
-  }
 }
