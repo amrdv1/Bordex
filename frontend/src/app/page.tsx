@@ -84,7 +84,7 @@ export default function Home() {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 
         (process.env.NODE_ENV === 'production' 
-          ? 'https://appealing-emotion-production-62c6.up.railway.app' 
+          ? 'https://bordexback-production.up.railway.app' 
           : 'http://localhost:3000');
       const res = await fetch(`${API_URL}/api/border-points`);
       if (res.ok) {
