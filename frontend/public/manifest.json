@@ -1,0 +1,21 @@
+{
+  "name": "BorderFlow",
+  "short_name": "BorderFlow",
+  "description": "Мониторинг очередей на границах Украины",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#171717",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

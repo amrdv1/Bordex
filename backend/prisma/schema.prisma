@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Country {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  code         String        @unique // e.g., "PL", "RO", "SK", "HU", "MD"
+  borderPoints BorderPoint[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model BorderPoint {
+  id             String          @id @default(uuid())
+  name           String
+  countryId      String
+  country        Country         @relation(fields: [countryId], references: [id])
+  lat            Float
+  lng            Float
+  isOpen         Boolean         @default(true)
+  queueData      QueueData?
+  history        QueueHistory[]
+  favorites      Favorite[]
+  notifications  Notification[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model QueueData {
+  id             String      @id @default(uuid())
+  borderPointId  String      @unique
+  borderPoint    BorderPoint @relation(fields: [borderPointId], references: [id])
+  cars           Int         @default(0)
+  trucks         Int         @default(0)
+  buses          Int         @default(0)
+  pedestrians    Int         @default(0)
+  waitTimeMins   Int         @default(0)
+  lastUpdated    DateTime    @default(now())
+  sourceId       String?
+  source         Source?     @relation(fields: [sourceId], references: [id])
+}
+
+model QueueHistory {
+  id             String      @id @default(uuid())
+  borderPointId  String
+  borderPoint    BorderPoint @relation(fields: [borderPointId], references: [id])
+  cars           Int         @default(0)
+  trucks         Int         @default(0)
+  buses          Int         @default(0)
+  pedestrians    Int         @default(0)
+  waitTimeMins   Int         @default(0)
+  recordedAt     DateTime    @default(now())
+}
+
+model Source {
+  id             String      @id @default(uuid())
+  name           String      @unique // e.g., "dpsu.gov.ua", "customs.gov.ua"
+  priority       Int         @default(1)
+  healthStatus   String      @default("OK") // OK, FAILING, OFFLINE
+  lastUpdate     DateTime    @default(now())
+  queueData      QueueData[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model User {
+  id             String         @id @default(uuid())
+  telegramId     String?        @unique
+  username       String?
+  role           String         @default("USER") // USER, ADMIN
+  favorites      Favorite[]
+  notifications  Notification[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Favorite {
+  id             String      @id @default(uuid())
+  userId         String
+  user           User        @relation(fields: [userId], references: [id])
+  borderPointId  String
+  borderPoint    BorderPoint @relation(fields: [borderPointId], references: [id])
+  createdAt      DateTime    @default(now())
+
+  @@unique([userId, borderPointId])
+}
+
+model Notification {
+  id             String      @id @default(uuid())
+  userId         String
+  user           User        @relation(fields: [userId], references: [id])
+  borderPointId  String
+  borderPoint    BorderPoint @relation(fields: [borderPointId], references: [id])
+  conditionType  String      // LESS_THAN, GREATER_THAN
+  vehicleType    String      // CARS, TRUCKS, BUSES, PEDESTRIANS, WAIT_TIME
+  thresholdValue Int
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+}
