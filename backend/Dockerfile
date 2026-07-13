@@ -1,10 +1,12 @@
-# Base image
+# Build stage
 FROM node:22-alpine AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
+COPY tsconfig.json ./
 
 RUN npm install
 
@@ -22,7 +24,12 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
+COPY --from=builder /app/tsconfig.json ./
+COPY --from=builder /app/entrypoint.sh ./
+
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start:prod"]
+ENTRYPOINT ["/app/entrypoint.sh"]
