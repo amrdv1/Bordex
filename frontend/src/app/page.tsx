@@ -82,16 +82,28 @@ export default function Home() {
 
   const fetchPoints = async () => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 
-        (process.env.NODE_ENV === 'production' 
-          ? 'https://bordexback-production.up.railway.app' 
-          : 'http://localhost:3000');
-      const res = await fetch(`${API_URL}/api/border-points`);
+      // Use our own Next.js API route that fetches live data from Nakordoni
+      const res = await fetch('/api/border-data');
       if (res.ok) {
         const data = await res.json();
-        setPoints(data.length > 0 ? data : MOCK_POINTS);
+        if (Array.isArray(data) && data.length > 0) {
+          setPoints(data);
+        } else {
+          setPoints(MOCK_POINTS);
+        }
       } else {
-        setPoints(MOCK_POINTS);
+        // Fallback: try the backend API
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 
+          (process.env.NODE_ENV === 'production' 
+            ? 'https://bordexback-production.up.railway.app' 
+            : 'http://localhost:3000');
+        const backendRes = await fetch(`${API_URL}/api/border-points`);
+        if (backendRes.ok) {
+          const data = await backendRes.json();
+          setPoints(data.length > 0 ? data : MOCK_POINTS);
+        } else {
+          setPoints(MOCK_POINTS);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch points, using mock data:", err);
