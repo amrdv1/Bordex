@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState, useEffect } from "react";
-import { Search, SlidersHorizontal, Map as MapIcon, List, Car, Truck, Bus, Users, Activity, Moon, Sun } from "lucide-react";
+import { Search, SlidersHorizontal, Map as MapIcon, List, Car, Truck, Bus, Users, Activity, Moon, Sun, LayoutGrid } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import PointsList from "../components/PointsList";
 
@@ -58,15 +58,16 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(false);
   const [filterCountry, setFilterCountry] = useState("Всі");
   const [showSplash, setShowSplash] = useState(true);
-  const [vehicleType, setVehicleType] = useState('cars');
+  const [vehicleType, setVehicleType] = useState('all');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   const uniqueCountries = ["Всі", ...Array.from(new Set(points.map(p => p.country?.name || "Unknown")))];
   
-  const totalInQueue = points.reduce((sum, p) => sum + (p.queueData?.[vehicleType] || 0), 0);
+  const totalInQueue = points.reduce((sum, p) => sum + (p.queueData?.cars || 0), 0);
   const activePoints = points.filter(p => p.isOpen).length;
 
   const VEHICLE_TYPES = [
+    { id: 'all', label: 'Усі', icon: LayoutGrid, color: 'text-emerald-500' },
     { id: 'cars', label: 'Легкові', icon: Car, color: 'text-blue-500' },
     { id: 'trucks', label: 'Вантажні', icon: Truck, color: 'text-orange-500' },
     { id: 'buses', label: 'Автобуси', icon: Bus, color: 'text-green-500' },
