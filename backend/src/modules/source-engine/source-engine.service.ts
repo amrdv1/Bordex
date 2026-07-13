@@ -1,11 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { SourceProvider, QueueMetrics } from './providers/provider.interface';
 import { NakordoniProvider } from './providers/nakordoni.provider';
 
 @Injectable()
-export class SourceEngineService {
+export class SourceEngineService implements OnModuleInit {
   private readonly logger = new Logger(SourceEngineService.name);
   private providers: SourceProvider[] = [];
 
@@ -13,6 +13,12 @@ export class SourceEngineService {
     this.providers = [
       new NakordoniProvider()
     ];
+  }
+
+  async onModuleInit() {
+    this.logger.log('Running initial data aggregation on startup...');
+    // Do not await to avoid blocking server startup
+    this.aggregateData().catch(e => this.logger.error('Initial aggregation failed', e));
   }
 
   @Cron('0 */2 * * *')
