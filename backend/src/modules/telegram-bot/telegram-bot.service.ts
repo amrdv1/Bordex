@@ -48,12 +48,12 @@ export class TelegramBotService implements OnModuleInit {
       }
 
       const keyboard = new InlineKeyboard()
-        .text('🇺🇦 Границы', 'menu_borders').row()
-        .text('⭐ Избранное', 'menu_favorites').row()
-        .text('🔔 Настройки уведомлений', 'menu_settings');
+        .text('🇺🇦 Кордони', 'menu_borders').row()
+        .text('⭐ Обране', 'menu_favorites').row()
+        .text('🔔 Налаштування сповіщень', 'menu_settings');
 
       await ctx.reply(
-        'Добро пожаловать в BorderFlow! 🚗\nУзнавайте актуальную информацию об очередях на границах Украины.',
+        'Вітаємо у Bordex! 🚗\nДізнавайтесь актуальну інформацію про черги на кордонах України.',
         { reply_markup: keyboard }
       );
     });
@@ -61,7 +61,7 @@ export class TelegramBotService implements OnModuleInit {
     this.bot.callbackQuery('menu_borders', async (ctx) => {
       const countries = await this.prisma.country.findMany();
       if (countries.length === 0) {
-        return ctx.editMessageText('К сожалению, страны пока не добавлены в базу данных.');
+        return ctx.editMessageText('На жаль, країни поки не додані до бази даних.');
       }
 
       const keyboard = new InlineKeyboard();
@@ -70,17 +70,17 @@ export class TelegramBotService implements OnModuleInit {
       });
       keyboard.text('🔙 Назад', 'menu_main');
 
-      await ctx.editMessageText('Выберите страну:', { reply_markup: keyboard });
+      await ctx.editMessageText('Оберіть країну:', { reply_markup: keyboard });
     });
 
     this.bot.callbackQuery('menu_main', async (ctx) => {
       const keyboard = new InlineKeyboard()
-        .text('🇺🇦 Границы', 'menu_borders').row()
-        .text('⭐ Избранное', 'menu_favorites').row()
-        .text('🔔 Настройки уведомлений', 'menu_settings');
+        .text('🇺🇦 Кордони', 'menu_borders').row()
+        .text('⭐ Обране', 'menu_favorites').row()
+        .text('🔔 Налаштування сповіщень', 'menu_settings');
 
       await ctx.editMessageText(
-        'Добро пожаловать в BorderFlow! 🚗\nУзнавайте актуальную информацию об очередях на границах Украины.',
+        'Вітаємо у Bordex! 🚗\nДізнавайтесь актуальну інформацію про черги на кордонах України.',
         { reply_markup: keyboard }
       );
     });
@@ -94,7 +94,7 @@ export class TelegramBotService implements OnModuleInit {
 
       if (points.length === 0) {
         const kb = new InlineKeyboard().text('🔙 Назад', 'menu_borders');
-        return ctx.editMessageText('В данной стране нет пунктов пропуска.', { reply_markup: kb });
+        return ctx.editMessageText('У цій країні немає пунктів пропуску.', { reply_markup: kb });
       }
 
       const keyboard = new InlineKeyboard();
@@ -103,9 +103,9 @@ export class TelegramBotService implements OnModuleInit {
         const icon = cars > 100 ? '🔴' : cars > 50 ? '🟡' : '🟢';
         keyboard.text(`${icon} ${point.name}`, `point_${point.id}`).row();
       });
-      keyboard.text('🔙 Назад к странам', 'menu_borders');
+      keyboard.text('🔙 Назад до країн', 'menu_borders');
 
-      await ctx.editMessageText('Выберите пункт пропуска:', { reply_markup: keyboard });
+      await ctx.editMessageText('Оберіть пункт пропуску:', { reply_markup: keyboard });
     });
 
     this.bot.callbackQuery(/^point_(.+)$/, async (ctx) => {
@@ -115,26 +115,26 @@ export class TelegramBotService implements OnModuleInit {
         include: { queueData: true, country: true }
       });
 
-      if (!point) return ctx.answerCallbackQuery('Пункт не найден.');
+      if (!point) return ctx.answerCallbackQuery('Пункт не знайдено.');
 
       const q = point.queueData;
       const text = `
 📍 <b>${point.name}</b> (${point.country.name})
-Статус: ${point.isOpen ? 'Открыт ✅' : 'Закрыт ❌'}
+Статус: ${point.isOpen ? 'Відкрито ✅' : 'Закрито ❌'}
 
-🚗 Легковые: ${q?.cars ?? 0}
-🚛 Грузовики: ${q?.trucks ?? 0}
-🚌 Автобусы: ${q?.buses ?? 0}
-🚶 Пешеходы: ${q?.pedestrians ?? 0}
+🚗 Легкові: ${q?.cars ?? 0}
+🚛 Вантажівки: ${q?.trucks ?? 0}
+🚌 Автобуси: ${q?.buses ?? 0}
+🚶 Пішоходи: ${q?.pedestrians ?? 0}
 
-⏱ Ожидание: ~${q?.waitTimeMins ?? 0} минут
+⏱ Очікування: ~${q?.waitTimeMins ?? 0} хвилин
 
-<i>Обновлено: ${q?.lastUpdated ? q.lastUpdated.toLocaleString() : 'Нет данных'}</i>
+<i>Оновлено: ${q?.lastUpdated ? q.lastUpdated.toLocaleString() : 'Немає даних'}</i>
       `;
 
       const kb = new InlineKeyboard()
-        .text('⭐ В избранное', `fav_add_${point.id}`).row()
-        .text('🔔 Уведомить об изменениях', `notify_${point.id}`).row()
+        .text('⭐ В обране', `fav_add_${point.id}`).row()
+        .text('🔔 Сповістити про зміни', `notify_${point.id}`).row()
         .text('🔙 Назад', `country_${point.country.code}`);
 
       await ctx.editMessageText(text, { reply_markup: kb, parse_mode: 'HTML' });
@@ -143,11 +143,11 @@ export class TelegramBotService implements OnModuleInit {
     this.bot.callbackQuery(/^notify_(.+)$/, async (ctx) => {
       const id = ctx.match[1];
       const kb = new InlineKeyboard()
-        .text('🚗 Меньше 50 авто', `sub_${id}_CARS_LESS_THAN_50`).row()
-        .text('🚗 Меньше 20 авто', `sub_${id}_CARS_LESS_THAN_20`).row()
-        .text('🔙 Назад к пункту', `point_${id}`);
+        .text('🚗 Менше 50 авто', `sub_${id}_CARS_LESS_THAN_50`).row()
+        .text('🚗 Менше 20 авто', `sub_${id}_CARS_LESS_THAN_20`).row()
+        .text('🔙 Назад до пункту', `point_${id}`);
         
-      await ctx.editMessageText('Выберите условие для уведомления:', { reply_markup: kb });
+      await ctx.editMessageText('Оберіть умову для сповіщення:', { reply_markup: kb });
     });
 
     this.bot.callbackQuery(/^sub_(.+)_(CARS)_(LESS_THAN)_(\d+)$/, async (ctx) => {
@@ -157,7 +157,7 @@ export class TelegramBotService implements OnModuleInit {
         where: { telegramId: ctx.from.id.toString() }
       });
 
-      if (!user) return ctx.answerCallbackQuery('Пользователь не найден. Нажмите /start');
+      if (!user) return ctx.answerCallbackQuery('Користувача не знайдено. Натисніть /start');
 
       await this.prisma.notification.create({
         data: {
@@ -170,8 +170,8 @@ export class TelegramBotService implements OnModuleInit {
         }
       });
 
-      const kb = new InlineKeyboard().text('🔙 Вернуться к пункту', `point_${pointId}`);
-      await ctx.editMessageText(`✅ Вы успешно подписались!\nМы пришлем уведомление, когда очередь станет ${conditionType === 'LESS_THAN' ? 'меньше' : 'больше'} ${thresholdValue} авто.`, { reply_markup: kb });
+      const kb = new InlineKeyboard().text('🔙 Повернутися до пункту', `point_${pointId}`);
+      await ctx.editMessageText(`✅ Ви успішно підписалися!\nМи надішлемо сповіщення, коли черга стане ${conditionType === 'LESS_THAN' ? 'менше' : 'більше'} ${thresholdValue} авто.`, { reply_markup: kb });
     });
 
     this.bot.catch((err) => {

@@ -9,7 +9,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <div className="w-64 bg-neutral-900 border-r border-neutral-800 flex flex-col hidden md:flex">
         <div className="p-6">
           <h1 className="text-2xl font-bold text-white tracking-tighter">
-            Border<span className="text-blue-500">Flow</span> Admin
+            Bordex<span className="text-blue-500">Admin</span>
           </h1>
         </div>
         <nav className="flex-1 px-4 space-y-2">
@@ -19,21 +19,21 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </Link>
           <Link href="#" className="flex items-center gap-3 px-4 py-3 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-xl transition-colors">
             <Users className="w-5 h-5" />
-            <span className="font-medium">Пользователи</span>
+            <span className="font-medium">Користувачі</span>
           </Link>
           <Link href="#" className="flex items-center gap-3 px-4 py-3 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-xl transition-colors">
             <Activity className="w-5 h-5" />
-            <span className="font-medium">Парсеры (Source)</span>
+            <span className="font-medium">Парсери (Source)</span>
           </Link>
           <Link href="#" className="flex items-center gap-3 px-4 py-3 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-xl transition-colors">
             <Settings className="w-5 h-5" />
-            <span className="font-medium">Настройки</span>
+            <span className="font-medium">Налаштування</span>
           </Link>
         </nav>
         <div className="p-4">
           <button className="flex items-center gap-3 px-4 py-3 w-full text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-xl transition-colors">
             <LogOut className="w-5 h-5" />
-            <span className="font-medium">Выйти</span>
+            <span className="font-medium">Вийти</span>
           </button>
         </div>
       </div>

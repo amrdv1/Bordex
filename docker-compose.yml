@@ -3,11 +3,11 @@ version: '3.8'
 services:
   db:
     image: postgres:15-alpine
-    container_name: borderflow-db
+    container_name: bordex-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: borderflow
+      POSTGRES_DB: bordex
     ports:
       - "5432:5432"
     volumes:
@@ -16,7 +16,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: borderflow-redis
+    container_name: bordex-redis
     ports:
       - "6379:6379"
     volumes:
@@ -27,9 +27,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: borderflow-backend
+    container_name: bordex-backend
     environment:
-      - DATABASE_URL=postgresql://postgres:password@db:5432/borderflow?schema=public
+      - DATABASE_URL=postgresql://postgres:password@db:5432/bordex?schema=public
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_SECRET=supersecret123
@@ -43,14 +43,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: borderflow-frontend
+    container_name: bordex-frontend
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost/api
     restart: always
 
   nginx:
     image: nginx:alpine
-    container_name: borderflow-nginx
+    container_name: bordex-nginx
     ports:
       - "80:80"
     volumes:

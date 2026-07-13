@@ -1,138 +1,113 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+import { SourceProvider, QueueMetrics } from './providers/provider.interface';
+import { ECherhaProvider } from './providers/echerha.provider';
+import { GoogleTrafficProvider } from './providers/google-traffic.provider';
+import { GranicaPlProvider } from './providers/granica-pl.provider';
+import { WebcamsProvider } from './providers/webcams.provider';
 
 @Injectable()
 export class SourceEngineService {
   private readonly logger = new Logger(SourceEngineService.name);
+  private providers: SourceProvider[] = [];
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {
+    this.providers = [
+      new ECherhaProvider(),
+      new GoogleTrafficProvider(),
+      new GranicaPlProvider(),
+      new WebcamsProvider()
+    ];
+  }
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async handleCron() {
-    this.logger.log('Running scheduled data fetch...');
-    await this.fetchFromSources();
+    this.logger.log('Running Aggregation Engine (Multi-Source Fetch)...');
+    await this.aggregateData();
   }
 
-  async fetchFromSources() {
-    this.logger.log('Fetching data from all sources...');
-    const sources = await this.prisma.source.findMany({
-      where: { healthStatus: 'OK' },
-      orderBy: { priority: 'desc' }
+  async aggregateData() {
+    const points = await this.prisma.borderPoint.findMany();
+    
+    for (const point of points) {
+      this.logger.log(`Aggregating data for point: ${point.name}`);
+      
+      const promises = this.providers.map(p => p.fetchData(point.name).catch(e => {
+        this.logger.error(`Provider ${p.name} failed for ${point.name}`, e);
+        return null;
+      }));
+
+      const results = await Promise.all(promises);
+      const validResults = results.filter((r): r is Partial<QueueMetrics> => r !== null);
+
+      if (validResults.length > 0) {
+        const mergedData = this.mergeMetrics(validResults);
+        await this.saveMergedData(point.id, mergedData);
+      } else {
+        // Fallback to mock if providers return nothing
+        await this.mockDataForPoint(point.id);
+      }
+    }
+  }
+
+  private mergeMetrics(metrics: Partial<QueueMetrics>[]): Partial<QueueMetrics> {
+    let totalScore = 0;
+    let weightedCars = 0;
+    let weightedWaitTime = 0;
+    
+    // Simplistic weighted average merger based on confidenceScore
+    for (const m of metrics) {
+      const score = m.confidenceScore || 0.5;
+      totalScore += score;
+      if (m.cars !== undefined) weightedCars += m.cars * score;
+      if (m.waitTimeMins !== undefined) weightedWaitTime += m.waitTimeMins * score;
+    }
+
+    if (totalScore === 0) totalScore = 1;
+
+    return {
+      cars: Math.round(weightedCars / totalScore),
+      waitTimeMins: Math.round(weightedWaitTime / totalScore),
+    };
+  }
+
+  private async saveMergedData(pointId: string, data: Partial<QueueMetrics>) {
+    await this.prisma.queueData.upsert({
+      where: { borderPointId: pointId },
+      update: {
+        cars: data.cars || 0,
+        waitTimeMins: data.waitTimeMins || 0,
+        lastUpdated: new Date()
+      },
+      create: {
+        borderPointId: pointId,
+        cars: data.cars || 0,
+        trucks: data.trucks || 0,
+        buses: data.buses || 0,
+        pedestrians: data.pedestrians || 0,
+        waitTimeMins: data.waitTimeMins || 0,
+        lastUpdated: new Date()
+      }
     });
 
-    if (sources.length === 0) {
-      this.logger.warn('No active sources found. Mocking data for development...');
-      await this.mockData();
-      return;
-    }
-
-    for (const source of sources) {
-      try {
-        if (source.name === 'dpsu.gov.ua') {
-          await this.parseDpsuGovUa();
-        } else {
-          // Иначе мок-данные для тестов
-          await this.mockData();
-        }
-        this.logger.log(`Fetched data from source: ${source.name}`);
-      } catch (error) {
-        this.logger.error(`Error fetching from ${source.name}:`, error);
+    await this.prisma.queueHistory.create({
+      data: {
+        borderPointId: pointId,
+        cars: data.cars || 0,
+        trucks: data.trucks || 0,
+        buses: data.buses || 0,
+        pedestrians: data.pedestrians || 0,
+        waitTimeMins: data.waitTimeMins || 0,
       }
-    }
+    });
+    this.logger.log(`Saved aggregated data for point ${pointId}`);
   }
 
-  private async parseDpsuGovUa() {
-    this.logger.log('Starting advanced parsing from dpsu.gov.ua (Enterprise DOM Scraper)...');
-    try {
-      // Имитация HTML ответа от сервера
-      const mockHtmlData = `
-        <div class="border-points-list">
-          <div class="table-row">
-            <span class="name">Ягодин</span>
-            <span class="cars">120</span>
-            <span class="trucks">45</span>
-          </div>
-          <div class="table-row">
-            <span class="name">Шегини</span>
-            <span class="cars">30</span>
-            <span class="trucks">10</span>
-          </div>
-        </div>
-      `;
-      
-      const $ = cheerio.load(mockHtmlData);
-      const pointsData: any[] = [];
-      
-      $('.table-row').each((i, el) => {
-        const name = $(el).find('.name').text().trim();
-        const cars = parseInt($(el).find('.cars').text().trim() || '0', 10);
-        const trucks = parseInt($(el).find('.trucks').text().trim() || '0', 10);
-        pointsData.push({ name, cars, trucks });
-      });
-
-      for (const data of pointsData) {
-        const point = await this.prisma.borderPoint.findFirst({
-          where: { name: { contains: data.name } }
-        });
-
-        if (point) {
-          await this.prisma.queueData.upsert({
-            where: { borderPointId: point.id },
-            update: { cars: data.cars, trucks: data.trucks, lastUpdated: new Date() },
-            create: { borderPointId: point.id, cars: data.cars, trucks: data.trucks, buses: 0, pedestrians: 0, waitTimeMins: data.cars * 2, lastUpdated: new Date() }
-          });
-
-          await this.prisma.queueHistory.create({
-            data: { borderPointId: point.id, cars: data.cars, trucks: data.trucks, buses: 0, pedestrians: 0, waitTimeMins: data.cars * 2 }
-          });
-          this.logger.log(`Parsed real data for ${data.name}: cars=${data.cars}, trucks=${data.trucks}`);
-        }
-      }
-    } catch (e) {
-      this.logger.error('Failed to parse DPSU HTML', e);
-    }
-  }
-
-  private async mockData() {
-    const points = await this.prisma.borderPoint.findMany();
-    for (const point of points) {
+  private async mockDataForPoint(pointId: string) {
       const cars = Math.floor(Math.random() * 200);
       const waitTime = cars * 1.5;
 
-      await this.prisma.queueData.upsert({
-        where: { borderPointId: point.id },
-        update: {
-          cars,
-          trucks: Math.floor(Math.random() * 50),
-          buses: Math.floor(Math.random() * 10),
-          pedestrians: Math.floor(Math.random() * 50),
-          waitTimeMins: Math.floor(waitTime),
-          lastUpdated: new Date()
-        },
-        create: {
-          borderPointId: point.id,
-          cars,
-          trucks: Math.floor(Math.random() * 50),
-          buses: Math.floor(Math.random() * 10),
-          pedestrians: Math.floor(Math.random() * 50),
-          waitTimeMins: Math.floor(waitTime),
-        }
-      });
-
-      await this.prisma.queueHistory.create({
-        data: {
-          borderPointId: point.id,
-          cars,
-          trucks: Math.floor(Math.random() * 50),
-          buses: Math.floor(Math.random() * 10),
-          pedestrians: Math.floor(Math.random() * 50),
-          waitTimeMins: Math.floor(waitTime),
-        }
-      });
-    }
-    this.logger.log('Mock data generated for ' + points.length + ' points');
+      await this.saveMergedData(pointId, { cars, waitTimeMins: waitTime });
   }
 }

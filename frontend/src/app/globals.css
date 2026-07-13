@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-sans: var(--font-geist-sans);
@@ -29,18 +30,94 @@ body {
   z-index: 0;
 }
 
+/* Custom Map Cursors to ensure high contrast on light backgrounds */
+.leaflet-container {
+  cursor: crosshair !important;
+}
+
+.leaflet-grab {
+  cursor: grab !important;
+}
+
+.leaflet-dragging .leaflet-grab,
+.leaflet-dragging .leaflet-grab .leaflet-interactive,
+.leaflet-dragging .leaflet-marker-draggable {
+  cursor: grabbing !important;
+}
+
 /* Custom Popup Styles for Leaflet */
-.leaflet-popup-content-wrapper {
-  background: rgba(255, 255, 255, 0.95) !important;
-  backdrop-filter: blur(10px) !important;
-  border-radius: 16px !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  color: #171717 !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1) !important;
+  border-radius: 20px !important;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.dark .leaflet-popup-content-wrapper, .dark .leaflet-popup-tip {
+  background: rgba(20, 20, 20, 0.85) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
 }
 
 .leaflet-popup-tip {
-  background: rgba(255, 255, 255, 0.95) !important;
+  border-top: none !important;
+  border-left: none !important;
 }
 
 .leaflet-popup-content {
-  margin: 12px !important;
+  margin: 16px !important;
+}
+
+.leaflet-popup-close-button {
+  color: rgba(0, 0, 0, 0.4) !important;
+  padding: 10px !important;
+  right: 6px !important;
+  top: 6px !important;
+}
+
+.leaflet-popup-close-button:hover {
+  color: black !important;
+  background: transparent !important;
+}
+
+/* MARKER PILL STYLING */
+.custom-marker-pill-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10 !important;
+}
+
+.marker-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  color: white;
+  font-weight: 800;
+  font-size: 11px;
+  font-family: var(--font-sans), sans-serif;
+  border: 1.5px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 2;
+  position: relative;
+}
+
+.marker-pill:hover {
+  transform: scale(1.3);
+  z-index: 1000 !important;
+}
+
+.custom-marker-pill-wrapper:hover {
+  z-index: 1000 !important;
 }
