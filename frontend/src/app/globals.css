@@ -121,3 +121,12 @@ body {
 .custom-marker-pill-wrapper:hover {
   z-index: 1000 !important;
 }
+
+/* Hide scrollbar for elements with custom-scrollbar class */
+.custom-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.custom-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
