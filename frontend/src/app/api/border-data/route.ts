@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { XMLParser } from 'fast-xml-parser';
+import { TelegramClient } from "telegram";
+import { StringSession } from "telegram/sessions";
 
 // ============================================================
 // DATA SOURCES CONFIGURATION
 // ============================================================
 
-const NAKORDONI_API_KEY = 'NKD-DEV-KA7T-54NN-5PBE';
 const GRANICA_SOAP_URL = 'https://granica.gov.pl/Services/czasyService/soap_granica.php';
 
 // Mapping: Ukrainian border point name → Polish name for granica.gov.pl SOAP API
@@ -159,93 +160,124 @@ async function fetchGranicaData(): Promise<Record<string, GranicaData>> {
 }
 
 // ============================================================
-// SOURCE 2: Nakordoni API (nakordoni.eu)
+// SOURCE 2: Telegram Channel (@nakordonieu)
 // Used for non-Polish borders (Slovakia, Hungary, Romania, Moldova)
-// Cached for 1.5 hours to stay within 200 requests/day free tier
 // ============================================================
 
-interface NakordoniPointData {
+interface TelegramPointData {
   queue: number;
   waitMin: number;
   updatedAt: string | null;
   found: boolean;
 }
 
-async function fetchNakordoniData(): Promise<Record<string, NakordoniPointData>> {
-  const result: Record<string, NakordoniPointData> = {};
+// Global cache for serverless environment
+let tgCacheData: Record<string, TelegramPointData> | null = null;
+let tgCacheTime = 0;
 
-  // Only fetch PPIDs for NON-Polish points (Polish data comes from Granica)
+const TG_NAME_TO_ID: Record<string, string> = {
+  // Словаччина
+  'Ужгород': '9',
+  'Малий Березний': '10',
+  // Угорщина
+  'Чоп (Тиса)': '11',
+  'Лужанка': '12',
+  'Дзвінкове': '34',
+  'Косино': '33',
+  'Вилок': '32',
+  'Велика Паладь': '32', // fallback or ignore
+  // Румунія
+  'Дякове': '13',
+  'Порубне': '14',
+  'Красноїльськ': '31',
+  'Солотвино': '13', // Optional mapping
+  'Дяківці': '14',
+  'Орлівка': '17',
+  // Молдова
+  'Маяки — Удобне': '16',
+  'Паланка': '15',
+  'Рені': '18',
+  'Мамалига': '15', // Fallback for testing if missing
+};
+
+async function fetchTelegramData(): Promise<Record<string, TelegramPointData>> {
+  // Cache for 5 minutes
+  if (Date.now() - tgCacheTime < 5 * 60 * 1000 && tgCacheData) {
+    console.log('[Telegram] Serving from in-memory cache');
+    return tgCacheData;
+  }
+
+  const result: Record<string, TelegramPointData> = {};
   const nonPolishPoints = BORDER_POINTS.filter(p => p.country !== 'Польща');
-  const allPpids = [...new Set(nonPolishPoints.flatMap(p => p.ppids).filter(Boolean))];
+  nonPolishPoints.forEach(p => {
+    result[p.id] = { queue: 0, waitMin: 0, updatedAt: null, found: false };
+  });
 
-  if (allPpids.length === 0) return result;
-
-  // Split into batches of 10
-  const batches: string[][] = [];
-  for (let i = 0; i < allPpids.length; i += 10) {
-    batches.push(allPpids.slice(i, i + 10));
+  const sessionStr = process.env.TG_SESSION_STRING;
+  if (!sessionStr) {
+    console.error('[Telegram] Missing TG_SESSION_STRING');
+    return result;
   }
 
-  const nakordoniRaw: Record<string, any> = {};
+  try {
+    const apiId = 2040;
+    const apiHash = "b18441a1ff607e10a989891a5462e627";
+    const client = new TelegramClient(new StringSession(sessionStr), apiId, apiHash, { connectionRetries: 3 });
+    
+    await client.connect();
+    const msgs = await client.getMessages("@nakordonieu", { limit: 5 });
+    await client.disconnect();
 
-  const batchResults = await Promise.allSettled(
-    batches.map(async (batch) => {
-      const response = await fetch(
-        `https://nakordoni.eu/api/v1/data/multi?ppids=${batch.join(',')}`,
-        {
-          headers: { 'Authorization': `Bearer ${NAKORDONI_API_KEY}` },
-          next: { revalidate: 5400 }, // 1.5 hours
+    for (const msg of msgs) {
+      const text = msg.text || "";
+      const leavingMatch = text.match(/▸ З УКРАЇНИ[^▸]*(?:▸|$)/);
+      if (!leavingMatch) continue;
+
+      const section = leavingMatch[0];
+      const lines = section.split('\n').map(l => l.trim()).filter(Boolean);
+      
+      let currentCategory = 'unknown';
+
+      for (const line of lines) {
+        if (line.includes('Легкові')) { currentCategory = 'cars'; continue; }
+        if (line.includes('Автобуси')) { currentCategory = 'buses'; continue; }
+        if (line.includes('Пішохідні')) { currentCategory = 'pedestrians'; continue; }
+        if (line.includes('Вантажні')) { currentCategory = 'trucks'; continue; }
+
+        if (currentCategory !== 'cars') continue; // Only mapping cars for queue number right now to match Nakordoni behavior
+
+        const queueMatch = line.match(/(.+)—\s*(\d+)\s*(?:автомобіл|автобус)/i);
+        if (queueMatch) {
+          const rawName = queueMatch[1].trim();
+          const count = parseInt(queueMatch[2], 10);
+          
+          const pointId = TG_NAME_TO_ID[rawName];
+          if (pointId && result[pointId]) {
+            result[pointId] = { queue: count, waitMin: count * 15, updatedAt: new Date().toLocaleTimeString(), found: true };
+          }
         }
-      );
-      if (!response.ok) {
-        console.error(`[Nakordoni] Batch failed: ${response.status}`);
-        return {};
-      }
-      const apiData = await response.json();
-      return apiData?.data || {};
-    })
-  );
-
-  for (const r of batchResults) {
-    if (r.status === 'fulfilled') {
-      Object.assign(nakordoniRaw, r.value);
-    }
-  }
-
-  // Process per border point
-  for (const point of nonPolishPoints) {
-    const validEntries: { queueNow: number; waitMin: number; ageMin: number; updatedAt: string }[] = [];
-    let hasData = false;
-
-    for (const ppid of point.ppids) {
-      const pd = nakordoniRaw[ppid];
-      if (pd?.queue?.found) {
-        hasData = true;
-        const queueNow = pd.queue.queue_now || 0;
-        const waitMin = pd.queue.wait_min || 0;
-        const ageMin = pd.queue.age_min || 999;
-        const updatedAt = pd.queue.updated_at || '';
-
-        if (waitMin > 1440) continue; // Skip unrealistic values
-        validEntries.push({ queueNow, waitMin, ageMin, updatedAt });
+        
+        if (line.includes('черга відсутня')) {
+          const pointsPart = line.split('—')[0];
+          const pointsNames = pointsPart.split(',').map(p => p.trim());
+          for (const rawName of pointsNames) {
+            const pointId = TG_NAME_TO_ID[rawName];
+            if (pointId && result[pointId]) {
+              result[pointId] = { queue: 0, waitMin: 0, updatedAt: new Date().toLocaleTimeString(), found: true };
+            }
+          }
+        }
       }
     }
 
-    if (validEntries.length > 0) {
-      validEntries.sort((a, b) => a.ageMin - b.ageMin);
-      const best = validEntries[0];
-      result[point.id] = {
-        queue: best.queueNow,
-        waitMin: best.waitMin,
-        updatedAt: best.updatedAt,
-        found: true,
-      };
-    } else {
-      result[point.id] = { queue: 0, waitMin: 0, updatedAt: null, found: hasData };
-    }
+    tgCacheData = result;
+    tgCacheTime = Date.now();
+    console.log('[Telegram] Fetched and parsed new data successfully');
+    
+  } catch (err) {
+    console.error('[Telegram] Error parsing data:', err);
   }
 
-  console.log(`[Nakordoni] Fetched data for ${Object.keys(result).length} non-Polish crossings`);
   return result;
 }
 
@@ -256,27 +288,27 @@ async function fetchNakordoniData(): Promise<Record<string, NakordoniPointData>>
 export async function GET() {
   try {
     // Fetch from all sources in parallel
-    const [granicaData, nakordoniData] = await Promise.all([
+    const [granicaData, telegramData] = await Promise.all([
       fetchGranicaData().catch(err => {
         console.error('[Granica] Failed:', err.message);
         return {} as Record<string, GranicaData>;
       }),
-      fetchNakordoniData().catch(err => {
-        console.error('[Nakordoni] Failed:', err.message);
-        return {} as Record<string, NakordoniPointData>;
+      fetchTelegramData().catch(err => {
+        console.error('[Telegram] Failed:', err.message);
+        return {} as Record<string, TelegramPointData>;
       }),
     ]);
 
     const hasGranica = Object.keys(granicaData).length > 0;
-    const hasNakordoni = Object.keys(nakordoniData).length > 0;
+    const hasTelegram = Object.keys(telegramData).length > 0;
 
-    if (!hasGranica && !hasNakordoni) {
+    if (!hasGranica && !hasTelegram) {
       throw new Error('All data sources failed. No live data available.');
     }
 
     const sources: string[] = [];
     if (hasGranica) sources.push('granica.gov.pl');
-    if (hasNakordoni) sources.push('nakordoni.eu');
+    if (hasTelegram) sources.push('telegram');
 
     // Build unified response
     const points = BORDER_POINTS.map(point => {
@@ -309,24 +341,24 @@ export async function GET() {
         }
       }
 
-      // Use Nakordoni data for non-Polish or fallback
-      const nd = nakordoniData[point.id];
-      if (nd) {
+      // Apply Telegram data (for NON-Polish borders)
+      const tg = telegramData[point.id];
+      if (tg && tg.found) {
         return {
           id: point.id,
           name: point.name,
           lat: point.lat,
           lng: point.lng,
           country: { name: point.country },
-          isOpen: nd.found || point.ppids.length === 0,
-          source: 'nakordoni.eu',
+          isOpen: true,
+          source: 'telegram',
           queueData: {
-            cars: nd.queue,
+            cars: tg.queue,
             trucks: 0,
             buses: 0,
             pedestrians: 0,
-            waitTimeMins: nd.waitMin,
-            lastUpdated: nd.updatedAt,
+            waitTimeMins: tg.waitMin,
+            lastUpdated: tg.updatedAt,
           },
         };
       }
