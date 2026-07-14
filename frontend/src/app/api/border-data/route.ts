@@ -62,7 +62,7 @@ export async function GET() {
           `https://nakordoni.eu/api/v1/data/multi?ppids=${batch.join(',')}`,
           {
             headers: { 'Authorization': `Bearer ${NAKORDONI_API_KEY}` },
-            next: { revalidate: 120 },
+            cache: 'no-store', // Disable caching completely to ensure fresh data
           }
         );
         if (!response.ok) {
@@ -78,6 +78,10 @@ export async function GET() {
       if (result.status === 'fulfilled') {
         Object.assign(nakordoniData, result.value);
       }
+    }
+
+    if (Object.keys(nakordoniData).length === 0) {
+      throw new Error('Nakordoni API returned no data across all batches. Likely blocked or rate limited.');
     }
 
     // Map each border point to its queue data
@@ -137,7 +141,7 @@ export async function GET() {
   } catch (error: any) {
     console.error('Failed to fetch Nakordoni data:', error.message);
     return NextResponse.json(
-      { error: 'Failed to fetch border data' },
+      { error: 'Failed to fetch border data', details: error.message },
       { status: 500 }
     );
   }

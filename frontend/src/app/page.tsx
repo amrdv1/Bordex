@@ -60,6 +60,7 @@ export default function Home() {
   const [showSplash, setShowSplash] = useState(true);
   const [vehicleType, setVehicleType] = useState('all');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [isLive, setIsLive] = useState(true);
 
   const uniqueCountries = ["Всі", ...Array.from(new Set(points.map(p => p.country?.name || "Unknown")))];
   
@@ -89,26 +90,17 @@ export default function Home() {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           setPoints(data);
+          setIsLive(true);
         } else {
-          setPoints(MOCK_POINTS);
+          throw new Error("Empty data from Next.js API");
         }
       } else {
-        // Fallback: try the backend API
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 
-          (process.env.NODE_ENV === 'production' 
-            ? 'https://bordexback-production.up.railway.app' 
-            : 'http://localhost:3000');
-        const backendRes = await fetch(`${API_URL}/api/border-points`);
-        if (backendRes.ok) {
-          const data = await backendRes.json();
-          setPoints(data.length > 0 ? data : MOCK_POINTS);
-        } else {
-          setPoints(MOCK_POINTS);
-        }
+        throw new Error("Next.js API returned error");
       }
     } catch (err) {
-      console.error("Failed to fetch points, using mock data:", err);
+      console.error("Failed to fetch live points, using mock data:", err);
       setPoints(MOCK_POINTS);
+      setIsLive(false);
     } finally {
       setLoading(false);
     }
@@ -282,10 +274,10 @@ export default function Home() {
         <div className="absolute bottom-8 left-6 z-[400] bg-white/80 dark:bg-neutral-900/80 backdrop-blur-2xl border border-black/5 dark:border-white/5 p-4 rounded-3xl shadow-2xl flex-col gap-1 hidden lg:flex min-w-[200px]">
           <div className="flex items-center gap-2 text-neutral-900 dark:text-white font-extrabold text-sm mb-1">
             <div className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isLive ? 'bg-green-400' : 'bg-orange-400'} opacity-75`}></span>
+              <span className={`relative inline-flex rounded-full h-3 w-3 ${isLive ? 'bg-green-500' : 'bg-orange-500'}`}></span>
             </div>
-            Live Статус
+            {isLive ? 'Live Статус' : 'Демо Дані (API ліміт)'}
           </div>
           <div className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold flex justify-between">
             <span>Відкрито пунктів:</span>
