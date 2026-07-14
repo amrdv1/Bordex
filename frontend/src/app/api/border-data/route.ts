@@ -62,7 +62,7 @@ export async function GET() {
           `https://nakordoni.eu/api/v1/data/multi?ppids=${batch.join(',')}`,
           {
             headers: { 'Authorization': `Bearer ${NAKORDONI_API_KEY}` },
-            cache: 'no-store', // Disable caching completely to ensure fresh data
+            next: { revalidate: 5400 }, // 1.5 hours (avoids hitting 200 requests/day limit)
           }
         );
         if (!response.ok) {
