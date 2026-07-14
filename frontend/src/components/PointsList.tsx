@@ -1,6 +1,6 @@
 "use client";
 
-import { Car, Clock, MapPin, TrendingUp } from "lucide-react";
+import { Car, Truck, Bus, Clock, MapPin, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function PointsList({ points }: { points: any[] }) {
@@ -12,26 +12,33 @@ export default function PointsList({ points }: { points: any[] }) {
     );
   }
 
-  const getStatusInfo = (cars: number) => {
-    if (cars > 100) return { color: 'bg-red-500', shadow: 'shadow-red-500/30', label: 'Високе', textColor: 'text-red-600 dark:text-red-400' };
-    if (cars > 30) return { color: 'bg-amber-500', shadow: 'shadow-amber-500/30', label: 'Середнє', textColor: 'text-amber-600 dark:text-amber-400' };
-    if (cars > 0) return { color: 'bg-green-500', shadow: 'shadow-green-500/30', label: 'Низьке', textColor: 'text-green-600 dark:text-green-400' };
+  const getWaitMins = (p: any): number => {
+    const qd = p.queueData;
+    if (!qd) return 0;
+    if (qd.carsWaitHours !== undefined) {
+      return Math.round(Math.max(qd.carsWaitHours || 0, qd.trucksWaitHours || 0, qd.busesWaitHours || 0) * 60);
+    }
+    return qd.waitTimeMins || 0;
+  };
+
+  const getStatusInfo = (mins: number) => {
+    if (mins > 180) return { color: 'bg-red-500', shadow: 'shadow-red-500/30', label: 'Високе', textColor: 'text-red-600 dark:text-red-400' };
+    if (mins > 60) return { color: 'bg-amber-500', shadow: 'shadow-amber-500/30', label: 'Середнє', textColor: 'text-amber-600 dark:text-amber-400' };
+    if (mins > 0) return { color: 'bg-green-500', shadow: 'shadow-green-500/30', label: 'Низьке', textColor: 'text-green-600 dark:text-green-400' };
     return { color: 'bg-emerald-500', shadow: 'shadow-emerald-500/30', label: 'Вільно', textColor: 'text-emerald-600 dark:text-emerald-400' };
   };
 
-  // Sort by queue size (largest first)
-  const sorted = [...points].sort((a, b) => (b.queueData?.cars || 0) - (a.queueData?.cars || 0));
+  // Sort by wait time (longest first)
+  const sorted = [...points].sort((a, b) => getWaitMins(b) - getWaitMins(a));
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 pt-36 md:pt-44 pb-28 md:pb-32 h-full overflow-y-auto custom-scrollbar">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {sorted.map((p, i) => {
-          const cars = p.queueData?.cars ?? 0;
-          const waitMins = p.queueData?.waitTimeMins ?? 0;
-          const status = getStatusInfo(cars);
-          const hours = Math.floor(waitMins / 60);
-          const mins = waitMins % 60;
-          const waitText = hours > 0 ? `~${hours}год ${mins}хв` : `~${mins}хв`;
+          const qd = p.queueData;
+          const isGranica = qd?.carsWaitHours !== undefined;
+          const waitMins = getWaitMins(p);
+          const status = getStatusInfo(waitMins);
 
           return (
             <motion.div
@@ -53,33 +60,67 @@ export default function PointsList({ points }: { points: any[] }) {
                     </p>
                   </div>
                 </div>
-                <div className={`px-3 py-1 rounded-full text-xs font-bold ${p.isOpen ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'}`}>
-                  {p.isOpen ? "Відкрито" : "Закрито"}
+                <div className="flex items-center gap-1.5">
+                  {p.source === 'granica.gov.pl' && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-bold">🇵🇱</span>
+                  )}
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold ${p.isOpen ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'}`}>
+                    {p.isOpen ? "Відкрито" : "Закрито"}
+                  </div>
                 </div>
               </div>
 
               {/* Stats */}
-              <div className="flex items-center gap-3">
-                <div className="flex-1 flex items-center gap-3 bg-neutral-100/80 dark:bg-neutral-800/80 p-3 rounded-2xl border border-black/5 dark:border-white/5">
-                  <Car className="w-5 h-5 text-blue-500" />
-                  <div>
-                    <div className="font-extrabold text-2xl text-neutral-900 dark:text-white leading-none">{cars}</div>
-                    <div className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold mt-0.5 uppercase tracking-wider">у черзі</div>
+              {isGranica ? (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3 bg-neutral-100/80 dark:bg-neutral-800/80 p-3 rounded-2xl border border-black/5 dark:border-white/5">
+                    <Car className="w-4 h-4 text-blue-500" />
+                    <span className="text-xs text-neutral-500 flex-1">Легкові</span>
+                    <span className="font-extrabold text-lg text-neutral-900 dark:text-white">{qd.carsWaitHours > 0 ? `${qd.carsWaitHours} год` : '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-3 bg-neutral-100/80 dark:bg-neutral-800/80 p-3 rounded-2xl border border-black/5 dark:border-white/5">
+                    <Truck className="w-4 h-4 text-orange-500" />
+                    <span className="text-xs text-neutral-500 flex-1">Вантажні</span>
+                    <span className="font-extrabold text-lg text-neutral-900 dark:text-white">{qd.trucksWaitHours > 0 ? `${qd.trucksWaitHours} год` : '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-3 bg-neutral-100/80 dark:bg-neutral-800/80 p-3 rounded-2xl border border-black/5 dark:border-white/5">
+                    <Bus className="w-4 h-4 text-green-500" />
+                    <span className="text-xs text-neutral-500 flex-1">Автобуси</span>
+                    <span className="font-extrabold text-lg text-neutral-900 dark:text-white">{qd.busesWaitHours > 0 ? `${qd.busesWaitHours} год` : '—'}</span>
                   </div>
                 </div>
-                <div className="flex-1 flex items-center gap-3 bg-neutral-100/80 dark:bg-neutral-800/80 p-3 rounded-2xl border border-black/5 dark:border-white/5">
-                  <Clock className="w-5 h-5 text-red-500" />
-                  <div>
-                    <div className="font-extrabold text-2xl text-neutral-900 dark:text-white leading-none">{waitText}</div>
-                    <div className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold mt-0.5 uppercase tracking-wider">очікування</div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 flex items-center gap-3 bg-neutral-100/80 dark:bg-neutral-800/80 p-3 rounded-2xl border border-black/5 dark:border-white/5">
+                    <Car className="w-5 h-5 text-blue-500" />
+                    <div>
+                      <div className="font-extrabold text-2xl text-neutral-900 dark:text-white leading-none">{qd?.cars ?? 0}</div>
+                      <div className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold mt-0.5 uppercase tracking-wider">у черзі</div>
+                    </div>
+                  </div>
+                  <div className="flex-1 flex items-center gap-3 bg-neutral-100/80 dark:bg-neutral-800/80 p-3 rounded-2xl border border-black/5 dark:border-white/5">
+                    <Clock className="w-5 h-5 text-red-500" />
+                    <div>
+                      <div className="font-extrabold text-2xl text-neutral-900 dark:text-white leading-none">
+                        {waitMins >= 60 ? `${Math.floor(waitMins / 60)}г ${waitMins % 60}хв` : `${waitMins}хв`}
+                      </div>
+                      <div className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold mt-0.5 uppercase tracking-wider">очікування</div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Status bar */}
-              <div className={`flex items-center gap-2 ${status.textColor} text-xs font-bold`}>
-                <TrendingUp className="w-3.5 h-3.5" />
-                <span>Навантаження: {status.label}</span>
+              <div className="flex items-center justify-between">
+                <div className={`flex items-center gap-2 ${status.textColor} text-xs font-bold`}>
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Навантаження: {status.label}</span>
+                </div>
+                {qd?.lastUpdated && (
+                  <span className="text-[10px] text-neutral-400">
+                    {qd.lastUpdated}
+                  </span>
+                )}
               </div>
             </motion.div>
           );

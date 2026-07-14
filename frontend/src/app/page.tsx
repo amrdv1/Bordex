@@ -64,8 +64,9 @@ export default function Home() {
 
   const uniqueCountries = ["Всі", ...Array.from(new Set(points.map(p => p.country?.name || "Unknown")))];
   
-  const totalInQueue = points.reduce((sum, p) => sum + (p.queueData?.cars || 0), 0);
   const activePoints = points.filter(p => p.isOpen).length;
+  const granicaCount = points.filter(p => p.source === 'granica.gov.pl').length;
+  const nakordoniCount = points.filter(p => p.source === 'nakordoni.eu').length;
 
   const VEHICLE_TYPES = [
     { id: 'all', label: 'Усі', icon: LayoutGrid, color: 'text-emerald-500' },
@@ -108,7 +109,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchPoints();
-    const interval = setInterval(fetchPoints, 60000); // refresh every minute
+    const interval = setInterval(fetchPoints, 120000); // refresh every 2 min
     return () => clearInterval(interval);
   }, []);
 
@@ -271,22 +272,25 @@ export default function Home() {
 
       {/* Live Status Widget (Desktop) */}
       {view === "map" && (
-        <div className="absolute bottom-8 left-6 z-[400] bg-white/80 dark:bg-neutral-900/80 backdrop-blur-2xl border border-black/5 dark:border-white/5 p-4 rounded-3xl shadow-2xl flex-col gap-1 hidden lg:flex min-w-[200px]">
+        <div className="absolute bottom-8 left-6 z-[400] bg-white/80 dark:bg-neutral-900/80 backdrop-blur-2xl border border-black/5 dark:border-white/5 p-4 rounded-3xl shadow-2xl flex-col gap-1 hidden lg:flex min-w-[220px]">
           <div className="flex items-center gap-2 text-neutral-900 dark:text-white font-extrabold text-sm mb-1">
             <div className="relative flex h-3 w-3">
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isLive ? 'bg-green-400' : 'bg-orange-400'} opacity-75`}></span>
               <span className={`relative inline-flex rounded-full h-3 w-3 ${isLive ? 'bg-green-500' : 'bg-orange-500'}`}></span>
             </div>
-            {isLive ? 'Live Статус' : 'Демо Дані (API ліміт)'}
+            {isLive ? 'Live Статус' : 'Демо Дані'}
           </div>
           <div className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold flex justify-between">
             <span>Відкрито пунктів:</span>
             <span className="text-neutral-900 dark:text-white">{activePoints}</span>
           </div>
-          <div className="text-xs text-neutral-500 dark:text-neutral-400 font-semibold flex justify-between">
-            <span>Загальна черга:</span>
-            <span className="text-neutral-900 dark:text-white">{totalInQueue}</span>
-          </div>
+          {isLive && (
+            <div className="mt-1 pt-1 border-t border-black/5 dark:border-white/5">
+              <div className="text-[10px] text-neutral-400 font-semibold">Джерела даних:</div>
+              {granicaCount > 0 && <div className="text-[10px] text-neutral-500">🇵🇱 granica.gov.pl — {granicaCount} пунктів</div>}
+              {nakordoniCount > 0 && <div className="text-[10px] text-neutral-500">🌐 nakordoni.eu — {nakordoniCount} пунктів</div>}
+            </div>
+          )}
         </div>
       )}
 
